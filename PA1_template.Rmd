@@ -1,0 +1,136 @@
+---
+title: "PA1_template"
+author: "ssvetoslavova"
+date: "July 17, 2015"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+Loading and preprocessing the data
+---
+
+**Reading data into a dataframe**
+
+```{r, echo=TRUE}
+dataF = read.csv('activity.csv', header = T)
+names(dataF)
+str(dataF)
+head(dataF)
+```
+
+Displaying mean and average using histogram
+---
+
+**Summarizing by day:**
+
+```{r, echo=TRUE}
+library(data.table)
+data_table = data.table(dataF)
+data_table_summary = data_table[, list(total_steps = sum(steps, na.rm = T)), 
+                          by = date]
+```
+
+**Histogram with mean and medium legend:**
+
+```{r, echo=TRUE}
+histogram = function(x, title){
+        hist(x, 
+             breaks = 20,
+             main = title,
+             xlab = 'Total Number of Steps', col = 'green',
+
+             cex.main = .9)
+
+        value_mean = round(mean(x), 1)
+        value_median = round(median(x), 1)
+        abline(v=value_mean, lwd = 3, col = 'red')
+        abline(v=value_median, lwd = 3, col = 'blue')
+        legend('topright', lty = 1, lwd = 3, col = c("red", "blue"),
+               cex = .8, 
+               legend = c(paste('Mean: ', value_mean),
+               paste('Median: ', value_median))
+               )
+}
+
+histogram(data_table_summary$total_steps, 'Number of Steps Taken Per Day')
+```
+
+Activity pattern - daily average
+---
+
+**Visualizing the daily averages of the activity pattern by:**
+
+- *making a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)*
+- *showing which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps*
+
+```{r, echo=TRUE}
+data_table_summary_interval = data_table[, list(average_steps = mean(steps, na.rm = T)), 
+                          by = interval]
+with(data_table_summary_interval, {
+        plot(interval, average_steps, type = 'l',
+             main = 'Average Steps by Time Interval',
+             xlab = '5 Minute Time Interval',
+             ylab = 'Average Number of Steps')
+        })
+maximum_steps = data_table_summary_interval[which.max(average_steps), ]
+maximum_lab = paste('Maximum Of ', round(maximum_steps$average_steps, 1), ' Steps \n On ', maximum_steps$interval, 'th Time Interval', sep = '')
+points(maximum_steps$interval,  maximum_steps$average_steps, col = 'red', lwd = 3, pch = 19)
+legend("topright",
+       legend = maximum_lab,
+       text.col = 'purple',
+       bty = 'n'
+       )
+```
+
+Missing Values
+---
+
+```{r, echo=TRUE}
+sum(is.na(dataF$steps))
+setkey(data_table, interval)
+setkey(data_table_summary_interval, interval)
+NA_replace = function(x,y){
+        if(is.na(x)){
+
+                return(y)
+        }
+        return(x)
+}
+data_table_missing = data_table[data_table_summary_interval]
+data_table_missing$new_steps = mapply(NA_replace,data_table_missing$steps, data_table_missing$average_steps)
+data_table_summary_missing = data_table_missing[, list(new_steps = sum(new_steps, na.rm = T)), 
+                          by = date]
+head(data_table_summary_missing)
+```
+
+***Legend Of Histogram representing mean and median***
+
+```{r, echo=TRUE}
+histogram(data_table_summary$total_steps, 'Missing Values Removed')
+histogram(data_table_summary_missing$new_steps, 'Missing Values Replaced With \n Mean For Interval')
+```
+
+***After replacing missing values - the mean and the median are almost the same.***
+
+Are there differences in activity patterns between weekdays and weekends?
+---
+
+```{r, echo=TRUE}
+data_table_missing$date1<-as.Date(data_table_missing$date)
+data_table_missing$date2<-weekdays(data_table_missing$date1)
+data_table_missing$Day_in_week<-as.factor(ifelse(data_table_missing$date2 %in% c("Saturday","Sunday"), "Weekend", "Weekday"))
+data_table_summary_missing = data_table_missing[, list(average_steps = mean(new_steps, na.rm = T)), 
+                          by = list(interval, Day_in_week)]
+```
+
+**Panel plot representation:**
+
+```{r, echo=TRUE}
+library(lattice)
+xyplot(average_steps~interval | Day_in_week, data = data_table_summary_missing,
+      type = 'l',
+      xlab = 'Interval',
+      ylab = 'Number of Steps',
+      layout = c(1,2))
+```
